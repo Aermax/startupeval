@@ -8,6 +8,8 @@ export interface ReportData {
   keyPoints: string[]
   insights: string[]
   actionableTakeaways: string[]
+  investmentRisks: string[]
+  marketAnalysis: string[]
   wordCount: number
   readingTime: number
   sentiment: "positive" | "neutral" | "negative"
@@ -29,6 +31,8 @@ Analyze the following document(s) and provide a comprehensive report in JSON for
   "keyPoints": ["Array of 4-6 most important points from the document(s)"],
   "insights": ["Array of 3-5 analytical insights or patterns discovered"],
   "actionableTakeaways": ["Array of 3-5 specific actionable recommendations"],
+  "investmentRisks": ["Array of 3-5 potential risks for investing in the startup"],
+  "marketAnalysis": ["Array of 3-5 points on market analysis, including target audience and competitors"],
   "wordCount": number,
   "readingTime": number (estimated minutes),
   "sentiment": "positive" | "neutral" | "negative"

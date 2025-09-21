@@ -1,3 +1,5 @@
+import Tesseract from "tesseract.js"
+
 declare global {
   interface Window {
     pdfjsLib: any
@@ -28,61 +30,52 @@ async function loadPDFJS() {
 
 async function extractTextFromPDF(file: File): Promise<string> {
   try {
-    
     await loadPDFJS()
 
-
     const arrayBuffer = await file.arrayBuffer()
-
-
     const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
-
-
     let fullText = ""
 
-    // Process pages in batches to avoid memory issues
-    const batchSize = 5
-    for (let i = 1; i <= pdf.numPages; i += batchSize) {
-      const batch = []
-      const endPage = Math.min(i + batchSize - 1, pdf.numPages)
-
-
-      for (let pageNum = i; pageNum <= endPage; pageNum++) {
-        batch.push(
-          pdf.getPage(pageNum).then(async (page: any) => {
-
-            const textContent = await page.getTextContent()
-
-
-            const pageText = textContent.items
-              .map((item: any) => {
-                // Handle different text item types
-                if (item.str && item.str.trim()) {
-                  return item.str
-                }
-                return ""
-              })
-              .filter((text: string) => text.length > 0)
-              .join(" ")
-
-
-            return pageText
-          }),
-        )
-      }
-
-      const batchResults = await Promise.all(batch)
-      const batchText = batchResults.join("\n").trim()
-      if (batchText) {
-        fullText += batchText + "\n"
+    // First, try to extract text directly
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i)
+      const textContent = await page.getTextContent()
+      const pageText = textContent.items.map((item: any) => item.str).join(" ")
+      if (pageText.trim().length > 0) {
+        fullText += pageText + "\n"
       }
     }
 
-    const finalText = fullText.trim()
+    // If direct text extraction fails, fall back to OCR
+    if (fullText.trim().length === 0) {
+      console.log("No text layer found, falling back to OCR...")
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i)
+        const viewport = page.getViewport({ scale: 2 })
+        const canvas = document.createElement("canvas")
+        const context = canvas.getContext("2d")!
+        canvas.height = viewport.height
+        canvas.width = viewport.width
 
-    return finalText
+        await page.render({ canvasContext: context, viewport: viewport }).promise
+
+        const {
+          data: { text },
+        } = await Tesseract.recognize(canvas, "eng", {
+          logger: (m) => console.log(m),
+        })
+
+        if (text.trim().length > 0) {
+          fullText += text + "\n"
+        }
+      }
+      console.log("OCR extraction complete.")
+    } else {
+      console.log("Text layer extracted successfully.")
+    }
+
+    return fullText.trim()
   } catch (error) {
-    
     throw new Error(`Failed to parse PDF: ${error instanceof Error ? error.message : "Unknown error"}`)
   }
 }

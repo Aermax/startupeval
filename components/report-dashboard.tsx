@@ -17,34 +17,6 @@ interface ReportDashboardProps {
 export function ReportDashboard({ reportData, fileName, extractedText, onNewReport }: ReportDashboardProps) {
   const [copiedSection, setCopiedSection] = useState<string | null>(null)
 
-  const generateDocumentAnalytics = useMemo(() => {
-    const words = extractedText
-      .toLowerCase()
-      .split(/\s+/)
-      .filter((word) => word.length > 2)
-    const sentences = extractedText.split(/[.!?]+/).filter((s) => s.trim().length > 0)
-
-    // Document structure analysis
-    const paragraphs = extractedText.split(/\n\s*\n/).filter((p) => p.trim().length > 0)
-    const readingTime = Math.ceil(words.length / 200) // Average reading speed
-
-    // Sentence length analysis
-    const sentenceLengths = sentences.map((s) => s.trim().split(/\s+/).length)
-    const avgSentenceLength = sentenceLengths.reduce((a, b) => a + b, 0) / sentenceLengths.length || 0
-
-    return {
-      documentStats: {
-        totalWords: words.length,
-        totalSentences: sentences.length,
-        totalParagraphs: paragraphs.length,
-        avgSentenceLength: Math.round(avgSentenceLength * 10) / 10,
-        readingTime,
-      },
-    }
-  }, [extractedText])
-
-  const { documentStats } = generateDocumentAnalytics
-
   const calculateSentimentScore = useMemo(() => {
     const positiveKeywords = [
       "growth",
@@ -180,7 +152,7 @@ export function ReportDashboard({ reportData, fileName, extractedText, onNewRepo
                   <Star className="w-8 h-8 text-white" />
                 </div>
                 <div>
-                  <h2 className="text-2xl md:text-3xl font-bold text-white">Startup Sentiment Score</h2>
+                  <h2 className="text-2xl md:text-3xl font-bold text-white">Startup Score</h2>
                   <p className="text-gray-400">Based on AI analysis of your document</p>
                 </div>
               </div>
@@ -211,8 +183,8 @@ export function ReportDashboard({ reportData, fileName, extractedText, onNewRepo
                   <FileText className="w-5 h-5 text-green-400" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-white">{documentStats.totalWords}</p>
-                  <p className="text-sm text-gray-400">Total Words</p>
+                  <p className="text-2xl font-bold text-white">{reportData.keyPoints.length}</p>
+                  <p className="text-sm text-gray-400">Key Points</p>
                 </div>
               </div>
             </CardContent>
@@ -225,8 +197,8 @@ export function ReportDashboard({ reportData, fileName, extractedText, onNewRepo
                   <BarChart3 className="w-5 h-5 text-blue-400" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-white">{documentStats.totalSentences}</p>
-                  <p className="text-sm text-gray-400">Sentences</p>
+                  <p className="text-2xl font-bold text-white">{reportData.investmentRisks.length}</p>
+                  <p className="text-sm text-gray-400">Risks Identified</p>
                 </div>
               </div>
             </CardContent>
@@ -239,8 +211,8 @@ export function ReportDashboard({ reportData, fileName, extractedText, onNewRepo
                   <Target className="w-5 h-5 text-purple-400" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-white">{documentStats.avgSentenceLength}</p>
-                  <p className="text-sm text-gray-400">Avg Words/Sentence</p>
+                  <p className="text-2xl font-bold text-white">{reportData.insights.length}</p>
+                  <p className="text-sm text-gray-400">Insights</p>
                 </div>
               </div>
             </CardContent>
@@ -253,8 +225,8 @@ export function ReportDashboard({ reportData, fileName, extractedText, onNewRepo
                   <Zap className="w-5 h-5 text-orange-400" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-white">{documentStats.readingTime}</p>
-                  <p className="text-sm text-gray-400">Min Read Time</p>
+                  <p className="text-2xl font-bold text-white">{reportData.actionableTakeaways.length}</p>
+                  <p className="text-sm text-gray-400">Takeaways</p>
                 </div>
               </div>
             </CardContent>
@@ -383,6 +355,74 @@ export function ReportDashboard({ reportData, fileName, extractedText, onNewRepo
                       <CheckCircle className="w-3 h-3 text-green-400" />
                     </div>
                     <p className="text-gray-300 leading-relaxed">{takeaway}</p>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+
+          {/* Investment Risks */}
+          <Card className="bg-white/5 backdrop-blur-sm border border-white/10">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-white flex items-center gap-2">
+                <TrendingUp className="w-5 h-5 text-red-400" />
+                Investment Risks
+              </CardTitle>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => copyToClipboard(reportData.investmentRisks.join("\n"), "risks")}
+                className="hover:bg-white/10"
+              >
+                {copiedSection === "risks" ? (
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                ) : (
+                  <Copy className="w-4 h-4 text-gray-400" />
+                )}
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-3">
+                {reportData.investmentRisks.map((risk, index) => (
+                  <li key={index} className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-red-500/30">
+                      <span className="text-xs font-medium text-red-400">{index + 1}</span>
+                    </div>
+                    <p className="text-gray-300 leading-relaxed">{risk}</p>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+
+          {/* Market Analysis */}
+          <Card className="bg-white/5 backdrop-blur-sm border border-white/10">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="text-white flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-yellow-400" />
+                Market Analysis
+              </CardTitle>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => copyToClipboard(reportData.marketAnalysis.join("\n"), "market")}
+                className="hover:bg-white/10"
+              >
+                {copiedSection === "market" ? (
+                  <CheckCircle className="w-4 h-4 text-green-400" />
+                ) : (
+                  <Copy className="w-4 h-4 text-gray-400" />
+                )}
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-3">
+                {reportData.marketAnalysis.map((analysis, index) => (
+                  <li key={index} className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-yellow-500/20 flex items-center justify-center flex-shrink-0 mt-0.5 border border-yellow-500/30">
+                      <BarChart3 className="w-3 h-3 text-yellow-400" />
+                    </div>
+                    <p className="text-gray-300 leading-relaxed">{analysis}</p>
                   </li>
                 ))}
               </ul>
