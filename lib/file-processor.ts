@@ -113,7 +113,7 @@ export async function extractTextFromFiles(files: File[]): Promise<{ fileName: s
 }
 
 export function validateFiles(files: File[]): { isValid: boolean; error?: string } {
-  const maxSize = 10 * 1024 * 1024 // 10MB per file
+  const maxSize = 100 * 1024 * 1024 // 100MB per file
   const maxFiles = 5 // Maximum 5 files
   const allowedTypes = ["text/plain", "application/pdf"]
 
@@ -136,7 +136,7 @@ export function validateFiles(files: File[]): { isValid: boolean; error?: string
     if (file.size > maxSize) {
       return {
         isValid: false,
-        error: `File too large: ${file.name}. Please upload files smaller than 10MB.`,
+        error: `File too large: ${file.name}. Please upload files smaller than 100MB.`,
       }
     }
   }

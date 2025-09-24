@@ -1,6 +1,15 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { generateReport } from "@/lib/gemini-client"
 
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "100mb",
+    },
+  },
+  maxDuration: 300,
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { text } = await request.json()

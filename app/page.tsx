@@ -250,7 +250,7 @@ export default function HomePage() {
                       Drop your files here or click to browse
                     </p>
                     <p className="text-sm md:text-base text-gray-400">
-                      Supports .txt and .pdf files • Multiple files supported • Up to 10MB each
+                      Supports .txt and .pdf files • Multiple files supported • Up to 100MB each
                     </p>
                   </div>
                 </>
