@@ -23,7 +23,7 @@ export async function generateReport(text: string): Promise<ReportData> {
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" })
 
     const prompt = `
 Analyze the following document(s) and provide a comprehensive report in a bento-grid-friendly JSON format. The structure should be as follows:
