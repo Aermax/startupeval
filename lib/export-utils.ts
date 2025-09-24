@@ -1,101 +1,50 @@
-import type { ReportData } from "./gemini-client"
+import { ReportData } from './gemini-client';
 
-export function generateMarkdownReport(reportData: ReportData, fileName: string): string {
-  const currentDate = new Date().toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  })
+export const exportReportAsMarkdown = (reportData: ReportData, fileName: string) => {
+  const { summary, keyMetrics, charts, insights, risks, sentiment } = reportData;
 
-  return `# startupEval AI Analysis Report: ${fileName}
+  let markdownContent = `# AI Analysis Report for ${fileName}\n\n`;
 
-*Generated on ${currentDate}*
+  markdownContent += `## ${summary.title}\n\n${summary.content}\n\n`;
 
----
+  markdownContent += `## ${sentiment.title}\n\n**Score:** ${sentiment.score}/100\n\n${sentiment.analysis}\n\n`;
 
-## 📋 Document Summary
+  markdownContent += `## ${keyMetrics.title}\n\n`;
+  keyMetrics.metrics.forEach(metric => {
+    markdownContent += `- **${metric.name}:** ${metric.value}\n`;
+  });
+  markdownContent += '\n';
 
-${reportData.summary}
+  markdownContent += `## ${insights.title}\n\n`;
+  insights.content.forEach(insight => {
+    markdownContent += `- ${insight}\n`;
+  });
+  markdownContent += '\n';
 
----
+  markdownContent += `## ${risks.title}\n\n`;
+  risks.content.forEach(risk => {
+    markdownContent += `- ${risk}\n`;
+  });
+  markdownContent += '\n';
 
-## 🔑 Key Points
-
-${reportData.keyPoints.map((point, index) => `${index + 1}. ${point}`).join("\n\n")}
-
----
-
-## 💡 Insights
-
-${reportData.insights.map((insight, index) => `${index + 1}. ${insight}`).join("\n\n")}
-
----
-
-## ✅ Actionable Takeaways
-
-${reportData.actionableTakeaways.map((takeaway, index) => `${index + 1}. ${takeaway}`).join("\n\n")}
-
----
-
-## 📊 Document Metrics
-
-| Metric | Value |
-|--------|-------|
-| **Word Count** | ${reportData.wordCount.toLocaleString()} |
-| **Estimated Reading Time** | ${reportData.readingTime} minutes |
-| **Sentiment** | ${reportData.sentiment.charAt(0).toUpperCase() + reportData.sentiment.slice(1)} |
-| **Key Points** | ${reportData.keyPoints.length} |
-| **Insights** | ${reportData.insights.length} |
-| **Actionable Items** | ${reportData.actionableTakeaways.length} |
-
----
-
-*This report was generated using startupEval AI-powered analysis. Results may vary based on document content and complexity.*
-`
-}
-
-export function generateJSONReport(reportData: ReportData, fileName: string): string {
-  const exportData = {
-    metadata: {
-      fileName,
-      generatedAt: new Date().toISOString(),
-      version: "1.0",
-    },
-    analysis: reportData,
+  if (charts.length > 0) {
+    markdownContent += '## Visualizations\n\n';
+    charts.forEach(chart => {
+      markdownContent += `### ${chart.title}\n\n> Chart Type: ${chart.type}\n\n`;
+      chart.data.forEach(dataPoint => {
+        markdownContent += `- ${dataPoint.name}: ${dataPoint.value}\n`;
+      });
+      markdownContent += '\n';
+    });
   }
 
-  return JSON.stringify(exportData, null, 2)
-}
-
-export function generateCSVReport(reportData: ReportData): string {
-  const csvData = [
-    ["Section", "Content"],
-    ["Summary", reportData.summary],
-    ...reportData.keyPoints.map((point, index) => [`Key Point ${index + 1}`, point]),
-    ...reportData.insights.map((insight, index) => [`Insight ${index + 1}`, insight]),
-    ...reportData.actionableTakeaways.map((takeaway, index) => [`Takeaway ${index + 1}`, takeaway]),
-    ["Word Count", reportData.wordCount.toString()],
-    ["Reading Time", `${reportData.readingTime} minutes`],
-    ["Sentiment", reportData.sentiment],
-  ]
-
-  return csvData.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")).join("\n")
-}
-
-export function downloadFile(content: string, fileName: string, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType })
-  const url = URL.createObjectURL(blob)
-
-  const link = document.createElement("a")
-  link.href = url
-  link.download = fileName
-  document.body.appendChild(link)
-  link.click()
-
-  document.body.removeChild(link)
-  URL.revokeObjectURL(url)
-}
-
-export function getFileNameWithoutExtension(fileName: string): string {
-  return fileName.replace(/\.[^/.]+$/, "")
-}
+  const blob = new Blob([markdownContent], { type: 'text/markdown' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${fileName.split('.')[0]}_report.md`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};

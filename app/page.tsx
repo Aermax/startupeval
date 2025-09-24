@@ -15,14 +15,17 @@ import Image from "next/image"
 type AppState = "upload" | "processing" | "report"
 type ProcessingStep = "extracting" | "analyzing" | "generating" | "complete"
 
+const MAX_CHAR_LIMIT = 3800000 // Approx. 1M tokens
+
 export default function HomePage() {
   const [appState, setAppState] = useState<AppState>("upload")
   const [isDragOver, setIsDragOver] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [processingStep, setProcessingStep] = useState<ProcessingStep>("extracting")
-  const [extractedText, setExtractedText] = useState<string>("")
   const [reportData, setReportData] = useState<ReportData | null>(null)
   const [error, setError] = useState<string>("")
+  const [isOcrInProgress, setIsOcrInProgress] = useState(false)
+  const [pageProgress, setPageProgress] = useState<{ current: number; total: number } | undefined>()
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -58,10 +61,17 @@ export default function HomePage() {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index))
   }
 
+  const updateOcrStatus = (isOcr: boolean) => {
+    setIsOcrInProgress(isOcr)
+  }
+
+  const updatePageProgress = (current: number, total: number) => {
+    setPageProgress({ current, total })
+  }
+
   const handleGenerate = async () => {
     if (selectedFiles.length === 0) return
 
-    // Validate files
     const validation = validateFiles(selectedFiles)
     if (!validation.isValid) {
       setError(validation.error || "Invalid files")
@@ -71,49 +81,62 @@ export default function HomePage() {
     setError("")
     setAppState("processing")
     setProcessingStep("extracting")
+    setPageProgress(undefined)
 
     try {
-      // Step 1: Extract text from all files
-      const fileResults = await extractTextFromFiles(selectedFiles)
-
-      // Combine all text with file separators
-      const combinedText = fileResults
-        .map((result) => `=== ${result.fileName} ===\n\n${result.text}`)
-        .join("\n\n" + "=".repeat(50) + "\n\n")
-
-      setExtractedText(combinedText)
-
-      // Step 2: AI analysis
-      setProcessingStep("analyzing")
-
-      const response = await fetch("/api/generate-report", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ text: combinedText }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to generate report")
+      let combinedText: string;
+      try {
+        const fileResults = await extractTextFromFiles(selectedFiles, updateOcrStatus, updatePageProgress)
+        combinedText = fileResults
+          .map((result) => `=== ${result.fileName} ===\n\n${result.text}`)
+          .join("\n\n" + "=".repeat(50) + "\n\n")
+      } catch (extractionError) {
+        console.error("Error during file extraction:", extractionError);
+        throw new Error("Failed to extract text from files. The file might be corrupted or in an unsupported format.");
       }
 
-      const { report } = await response.json()
+      console.log(`Extracted text length: ${combinedText.length} characters`);
 
-      // Step 3: Generate report
+      if (combinedText.length > MAX_CHAR_LIMIT) {
+        setError("The document is too long to be processed. The extracted text has been truncated.");
+        combinedText = combinedText.substring(0, MAX_CHAR_LIMIT);
+      }
+
+      setProcessingStep("analyzing")
+
+      let report: ReportData;
+      try {
+        const response = await fetch("/api/generate-report", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ text: combinedText }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Failed to generate report from API")
+        }
+
+        const result = await response.json()
+        report = result.report
+      } catch (apiError) {
+        console.error("Error during API call:", apiError);
+        throw new Error("Failed to generate report. The AI model may have returned an invalid response.");
+      }
+
       setProcessingStep("generating")
       await new Promise((resolve) => setTimeout(resolve, 1500))
 
       setReportData(report)
 
-      // Step 4: Complete
       setProcessingStep("complete")
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
       setAppState("report")
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred while processing the files")
+      setError(err instanceof Error ? err.message : "An unknown error occurred while processing the files")
       setAppState("upload")
     }
   }
@@ -121,14 +144,13 @@ export default function HomePage() {
   const handleNewReport = () => {
     setAppState("upload")
     setSelectedFiles([])
-    setExtractedText("")
     setReportData(null)
     setError("")
     setProcessingStep("extracting")
   }
 
   if (appState === "processing") {
-    return <ProcessingState fileName={selectedFiles.map((f) => f.name).join(", ")} currentStep={processingStep} />
+    return <ProcessingState fileName={selectedFiles.map((f) => f.name).join(", ")} currentStep={processingStep} isOcr={isOcrInProgress} pageProgress={pageProgress} />
   }
 
   if (appState === "report" && reportData) {
@@ -136,7 +158,6 @@ export default function HomePage() {
       <ReportDashboard
         reportData={reportData}
         fileName={selectedFiles.map((f) => f.name).join(", ")}
-        extractedText={extractedText}
         onNewReport={handleNewReport}
       />
     )

@@ -1,18 +1,20 @@
 import { GoogleGenerativeAI } from "@google/generative-ai"
 
-// Initialize Gemini AI client
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "")
 
+export interface ChartData {
+  type: "line" | "bar"
+  title: string
+  data: { name: string; value: number }[]
+}
+
 export interface ReportData {
-  summary: string
-  keyPoints: string[]
-  insights: string[]
-  actionableTakeaways: string[]
-  investmentRisks: string[]
-  marketAnalysis: string[]
-  wordCount: number
-  readingTime: number
-  sentiment: "positive" | "neutral" | "negative"
+  summary: { title: string; content: string }
+  keyMetrics: { title: string; metrics: { name: string; value: string | number }[] }
+  charts: ChartData[]
+  insights: { title: string; content: string[] }
+  risks: { title: string; content: string[] }
+  sentiment: { title: string; score: number; analysis: string }
 }
 
 export async function generateReport(text: string): Promise<ReportData> {
@@ -21,24 +23,55 @@ export async function generateReport(text: string): Promise<ReportData> {
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" })
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
 
     const prompt = `
-Analyze the following document(s) and provide a comprehensive report in JSON format with the following structure:
+Analyze the following document(s) and provide a comprehensive report in a bento-grid-friendly JSON format. The structure should be as follows:
 
 {
-  "summary": "A concise 2-3 sentence summary of the main content",
-  "keyPoints": ["Array of 4-6 most important points from the document(s)"],
-  "insights": ["Array of 3-5 analytical insights or patterns discovered"],
-  "actionableTakeaways": ["Array of 3-5 specific actionable recommendations"],
-  "investmentRisks": ["Array of 3-5 potential risks for investing in the startup"],
-  "marketAnalysis": ["Array of 3-5 points on market analysis, including target audience and competitors"],
-  "wordCount": number,
-  "readingTime": number (estimated minutes),
-  "sentiment": "positive" | "neutral" | "negative"
+  "summary": {
+    "title": "Executive Summary",
+    "content": "A concise 2-3 sentence summary of the main content."
+  },
+  "keyMetrics": {
+    "title": "Key Metrics",
+    "metrics": [
+      { "name": "Metric Name 1", "value": "Value 1" },
+      { "name": "Metric Name 2", "value": "Value 2" }
+    ]
+  },
+  "charts": [
+    {
+      "type": "line",
+      "title": "Financial Projections",
+      "data": [
+        { "name": "Q1 2024", "value": 10000 },
+        { "name": "Q2 2024", "value": 15000 }
+      ]
+    }
+  ],
+  "insights": {
+    "title": "Key Insights",
+    "content": [
+      "Insight 1",
+      "Insight 2"
+    ]
+  },
+  "risks": {
+    "title": "Potential Risks",
+    "content": [
+      "Risk 1",
+      "Risk 2"
+    ]
+  },
+  "sentiment": {
+    "title": "Sentiment Analysis",
+    "score": 75,
+    "analysis": "The document exhibits a positive sentiment, focusing on growth and opportunities."
+  }
 }
 
-If multiple documents are provided, analyze them collectively and provide insights that span across all documents.
+IMPORTANT: For the 'charts' array, only include a chart object if you can extract meaningful, accurate, and relevant data from the document that can be visualized as a line or bar chart. If no such data is available, return an empty array for 'charts'.
 
 Document(s) to analyze:
 ${text}
@@ -50,14 +83,12 @@ Please ensure the response is valid JSON only, with no additional text or format
     const response = await result.response
     const responseText = response.text()
 
-    // Clean the response to ensure it's valid JSON
     const cleanedResponse = responseText.replace(/```json\n?|\n?```/g, "").trim()
 
     try {
       const reportData = JSON.parse(cleanedResponse) as ReportData
 
-      // Validate the structure
-      if (!reportData.summary || !Array.isArray(reportData.keyPoints)) {
+      if (!reportData.summary || !reportData.keyMetrics) {
         throw new Error("Invalid report structure received from AI")
       }
 
@@ -70,16 +101,4 @@ Please ensure the response is valid JSON only, with no additional text or format
     console.error("Gemini API error:", error)
     throw new Error("Failed to generate report. Please check your API key and try again.")
   }
-}
-
-// Utility function to estimate reading time
-export function estimateReadingTime(text: string): number {
-  const wordsPerMinute = 200
-  const wordCount = text.split(/\s+/).length
-  return Math.ceil(wordCount / wordsPerMinute)
-}
-
-// Utility function to count words
-export function countWords(text: string): number {
-  return text.split(/\s+/).filter((word) => word.length > 0).length
 }

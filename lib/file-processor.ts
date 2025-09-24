@@ -6,17 +6,14 @@ declare global {
   }
 }
 
-// Load PDF.js library dynamically
 async function loadPDFJS() {
   if (typeof window !== "undefined" && !window.pdfjsLib) {
-    // Load PDF.js from reliable CDN
     const script = document.createElement("script")
     script.src = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"
     script.async = true
 
     return new Promise((resolve, reject) => {
       script.onload = () => {
-        // Configure worker
         window.pdfjsLib.GlobalWorkerOptions.workerSrc =
           "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"
         resolve(window.pdfjsLib)
@@ -28,30 +25,39 @@ async function loadPDFJS() {
   return window.pdfjsLib
 }
 
-async function extractTextFromPDF(file: File): Promise<string> {
+async function extractTextFromPDF(
+  file: File,
+  updateOcrStatus: (isOcr: boolean) => void,
+  updatePageProgress: (page: number, total: number) => void
+): Promise<string> {
   try {
     await loadPDFJS()
 
     const arrayBuffer = await file.arrayBuffer()
     const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
-    let fullText = ""
+    const numPages = pdf.numPages
+    updatePageProgress(0, numPages)
 
-    // First, try to extract text directly
-    for (let i = 1; i <= pdf.numPages; i++) {
-      const page = await pdf.getPage(i)
+    const pagePromises = Array.from({ length: numPages }, async (_, i) => {
+      const pageNum = i + 1
+      const page = await pdf.getPage(pageNum)
       const textContent = await page.getTextContent()
-      const pageText = textContent.items.map((item: any) => item.str).join(" ")
-      if (pageText.trim().length > 0) {
-        fullText += pageText + "\n"
-      }
-    }
+      updatePageProgress(pageNum, numPages)
+      return textContent.items.map((item: any) => item.str).join(" ")
+    })
 
-    // If direct text extraction fails, fall back to OCR
+    let pagesText = await Promise.all(pagePromises)
+    let fullText = pagesText.join("\n")
+
     if (fullText.trim().length === 0) {
       console.log("No text layer found, falling back to OCR...")
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i)
-        const viewport = page.getViewport({ scale: 2 })
+      updateOcrStatus(true)
+      updatePageProgress(0, numPages)
+
+      const ocrPromises = Array.from({ length: numPages }, async (_, i) => {
+        const pageNum = i + 1
+        const page = await pdf.getPage(pageNum)
+        const viewport = page.getViewport({ scale: 1.5 })
         const canvas = document.createElement("canvas")
         const context = canvas.getContext("2d")!
         canvas.height = viewport.height
@@ -59,28 +65,46 @@ async function extractTextFromPDF(file: File): Promise<string> {
 
         await page.render({ canvasContext: context, viewport: viewport }).promise
 
-        const {
-          data: { text },
-        } = await Tesseract.recognize(canvas, "eng", {
-          logger: (m) => console.log(m),
+        const ocrPromise = Tesseract.recognize(canvas, "eng", {
+          logger: (m) => {
+            if (m.status === 'recognizing text') {
+              console.log(`[OCR Page ${pageNum}/${numPages}] Progress: ${(m.progress * 100).toFixed(2)}%`)
+            }
+          },
         })
 
-        if (text.trim().length > 0) {
-          fullText += text + "\n"
-        }
-      }
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => {
+            reject(new Error(`OCR process timed out for page ${pageNum}`))
+          }, 120000) // 2-minute timeout per page
+        })
+
+        const result = await Promise.race([ocrPromise, timeoutPromise])
+        updatePageProgress(pageNum, numPages)
+        return result.data.text
+      })
+
+      pagesText = await Promise.all(ocrPromises)
+      fullText = pagesText.join("\n")
+
       console.log("OCR extraction complete.")
+      updateOcrStatus(false)
     } else {
       console.log("Text layer extracted successfully.")
     }
 
     return fullText.trim()
   } catch (error) {
+    updateOcrStatus(false)
     throw new Error(`Failed to parse PDF: ${error instanceof Error ? error.message : "Unknown error"}`)
   }
 }
 
-export async function extractTextFromFiles(files: File[]): Promise<{ fileName: string; text: string }[]> {
+export async function extractTextFromFiles(
+  files: File[],
+  updateOcrStatus: (isOcr: boolean) => void,
+  updatePageProgress: (page: number, total: number) => void
+): Promise<{ fileName: string; text: string }[]> {
   const results = []
 
   for (const file of files) {
@@ -90,7 +114,7 @@ export async function extractTextFromFiles(files: File[]): Promise<{ fileName: s
       if (file.type === "text/plain") {
         text = await file.text()
       } else if (file.type === "application/pdf") {
-        text = await extractTextFromPDF(file)
+        text = await extractTextFromPDF(file, updateOcrStatus, updatePageProgress)
       } else {
         throw new Error(`Unsupported file type: ${file.type}`)
       }
@@ -114,7 +138,7 @@ export async function extractTextFromFiles(files: File[]): Promise<{ fileName: s
 
 export function validateFiles(files: File[]): { isValid: boolean; error?: string } {
   const maxSize = 100 * 1024 * 1024 // 100MB per file
-  const maxFiles = 5 // Maximum 5 files
+  const maxFiles = 5
   const allowedTypes = ["text/plain", "application/pdf"]
 
   if (files.length === 0) {
@@ -142,8 +166,4 @@ export function validateFiles(files: File[]): { isValid: boolean; error?: string
   }
 
   return { isValid: true }
-}
-
-export function validateFile(file: File): { isValid: boolean; error?: string } {
-  return validateFiles([file])
 }

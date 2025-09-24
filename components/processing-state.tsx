@@ -6,9 +6,11 @@ import { Sparkles, FileText, Brain, CheckCircle } from "lucide-react"
 interface ProcessingStateProps {
   fileName: string
   currentStep: "extracting" | "analyzing" | "generating" | "complete"
+  isOcr?: boolean
+  pageProgress?: { current: number; total: number }
 }
 
-export function ProcessingState({ fileName, currentStep }: ProcessingStateProps) {
+export function ProcessingState({ fileName, currentStep, isOcr, pageProgress }: ProcessingStateProps) {
   const steps = [
     {
       id: "extracting",
@@ -124,6 +126,8 @@ export function ProcessingState({ fileName, currentStep }: ProcessingStateProps)
                     `}
                     >
                       {step.description}
+                      {isActive && isOcr && " (Using OCR, this may take a while)"}
+                      {isActive && pageProgress && pageProgress.total > 0 && ` - Page ${pageProgress.current}/${pageProgress.total}`}
                     </p>
                   </div>
 
